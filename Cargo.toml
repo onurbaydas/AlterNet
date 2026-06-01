@@ -1,0 +1,8 @@
+[workspace]
+members = [
+    "alternet-core",
+    "alternet-cli",
+    "alternet-node",
+    "alternet-browser/src-tauri",
+]
+resolver = "2"

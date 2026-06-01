@@ -1,0 +1,32 @@
+[package]
+name = "alternet-browser"
+version = "0.1.0"
+edition = "2024"
+description = "AlterNet Browser — sunucusuz, hesapsız, sansüre dayanıklı tarayıcı"
+
+[lib]
+name = "alternet_browser_lib"
+crate-type = ["staticlib", "cdylib", "rlib"]
+
+[[bin]]
+name = "alternet-browser"
+path = "src/main.rs"
+
+[build-dependencies]
+tauri-build = { version = "2", features = [] }
+
+[dependencies]
+alternet-core = { path = "../../alternet-core" }
+tauri = { version = "2" }
+tauri-plugin-dialog = "2"
+tauri-plugin-shell = "2"
+tokio = { version = "1.52.3", features = ["full"] }
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+anyhow = "1"
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tempfile = "3"
+ciborium = "0.2"
+data-encoding = "2"
+libp2p = { version = "0.56.0", features = ["identify"] }

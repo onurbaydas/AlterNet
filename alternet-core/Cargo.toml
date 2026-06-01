@@ -1,0 +1,57 @@
+[package]
+name = "alternet-core"
+version = "0.1.0"
+edition = "2024"
+description = "AlterNet protocol library — serverless, accountless, censorship-resistant content publishing"
+
+[dependencies]
+# Cryptography — versions pinned to AlterChat compatibility
+aead = "0.5.2"
+aes-gcm = "0.10.3"
+argon2 = "0.5.3"
+ed25519-dalek = { version = "2.2.0", features = ["rand_core"] }
+x25519-dalek = "2.0.1"
+hkdf = "0.13.0"
+hmac = { version = "0.13.0", features = ["zeroize"] }
+sha2 = "0.11.0"
+blake3 = "1"
+zeroize = { version = "1.8.2", features = ["derive"] }
+
+# Networking — libp2p 0.56 (AlterChat uyumu)
+libp2p = { version = "0.56.0", features = [
+    "tcp", "dns", "noise", "yamux", "kad", "tokio", "macros",
+    "ed25519", "identify", "ping", "mdns", "request-response",
+    "cbor", "relay", "dcutr", "quic",
+] }
+libp2p-community-tor = { path = "../libp2p-community-tor" }
+
+# Serialization — CBOR (schema-free, deterministic, no central authority)
+serde = { version = "1.0.228", features = ["derive"] }
+serde_json = "1.0"
+ciborium = "0.2"
+
+# Async runtime
+tokio = { version = "1.52.3", features = ["full"] }
+futures = "0.3"
+
+# Utilities
+rand = "0.10.1"
+data-encoding = "2"
+thiserror = "2"
+async-trait = "0.1"
+sysinfo = "0.39.2"
+tracing = "0.1"
+
+# CRDT (Phase 5)
+automerge = "0.9.0"
+pbkdf2 = "0.13.0"
+
+# WASM sandbox (Phase 5 — AlterApps L7)
+# Yalnızca capability verilen host fonksiyonlarına erişim; fuel ile sonsuz döngü koruması.
+wasmtime = { version = "27", default-features = false, features = ["cranelift", "runtime", "wat"] }
+anyhow = "1.0.102"
+tracing-subscriber = "0.3.23"
+
+[dev-dependencies]
+tempfile = "3"
+tokio = { version = "1.52.3", features = ["full"] }

@@ -1,0 +1,19 @@
+[package]
+name = "alternet-cli"
+version = "0.1.0"
+edition = "2024"
+description = "AlterNet command-line tool — publish, fetch, pin, resolve"
+
+[[bin]]
+name = "alternet-cli"
+path = "src/main.rs"
+
+[dependencies]
+alternet-core = { path = "../alternet-core" }
+clap = { version = "4", features = ["derive"] }
+tokio = { version = "1.52.3", features = ["full"] }
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+anyhow = "1"
+data-encoding = "2"
+ciborium = "0.2"

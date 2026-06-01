@@ -1,0 +1,17 @@
+{
+  "$schema": "../gen/schemas/desktop-schema.json",
+  "identifier": "default",
+  "description": "AlterNet Browser varsayılan izinleri",
+  "windows": ["main"],
+  "permissions": [
+    "core:default",
+    "core:app:default",
+    "core:window:default",
+    "core:webview:default",
+    "core:event:default",
+    "core:path:default",
+    "dialog:default",
+    "dialog:allow-open",
+    "shell:default"
+  ]
+}

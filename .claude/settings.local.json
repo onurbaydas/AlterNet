@@ -1,0 +1,25 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(cargo build *)",
+      "Bash(cargo test *)",
+      "Bash(cargo clippy *)",
+      "Bash(grep -v \"^$\")",
+      "Bash(npm --version)",
+      "Bash(cargo tauri *)",
+      "Read(//home/honor/.cargo/registry/src/**)",
+      "Bash(cargo search *)",
+      "Bash(python3 -c ' *)",
+      "Read(//tmp/**)",
+      "Bash(rm -rf alternet-e4-test)",
+      "Bash(mkdir -p alternet-e4-test/d1)",
+      "Bash(cargo run *)",
+      "Bash(rm -rf ae4)",
+      "Bash(mkdir -p ae4)",
+      "Bash(awk '{s+=$4} END {print \"TOPLAM GEÇEN TEST: \" s}')",
+      "Bash(rm -rf /tmp/enc)",
+      "Bash(mkdir -p /tmp/enc/site)",
+      "Bash(awk '{s+=$4} END {print \"TOPLAM GEÇEN: \" s}')"
+    ]
+  }
+}

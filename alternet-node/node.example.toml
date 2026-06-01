@@ -1,0 +1,35 @@
+# AlterNet Node — Örnek Yapılandırma
+# Kopyala: cp node.example.toml ~/.alternet/node.toml
+
+# Dinleme portu (varsayılan: 4001)
+port = 4001
+
+# Veri dizini (varsayılan: ~/.alternet)
+# data_dir = "/var/lib/alternet"
+
+# Depolama kotası (B, K, M, G birimi)
+# 0 = sınırsız (yalnızca adaptif hesaplama)
+storage_quota = "10G"
+
+# Relay hizmeti (NAT arkasındaki cihazlara yardım)
+# Manifesto II: güçlü makine ağın daha fazlasını taşır
+relay_enabled = true
+
+# Provider record yenileme aralığı (saniye)
+# Kademlia TTL varsayılanı 24 saat; bu değer daha önce yenileme yapar
+refresh_interval_secs = 3600
+
+# Bootstrap node adresleri (opsiyonel, topluluk listeye ek)
+# bootstrap_addrs = [
+#   "/ip4/1.2.3.4/tcp/4001/p2p/12D3KooW..."
+# ]
+
+# Otomatik seed edilecek siteler
+# Manifesto II: ilgi = replikasyon = erişilebilirlik
+# [[pin]]
+# uri = "alter://abc123def456..."
+# label = "Benim favorilerim"
+
+# [[pin]]
+# uri = "alter://xyz789..."
+# label = "Haberler"

@@ -1,0 +1,108 @@
+/* AlterNet Browser — Global Styles
+ * Glassmorphism + dark theme
+ * Manifesto VI: En basit kullanıcı da kullanabilir
+ */
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+:root {
+  --bg-deep:    #07071a;
+  --bg-mid:     #10102a;
+  --accent:     #7850ff;
+  --accent-dim: #5030cc;
+  --glass-bg:   rgba(255, 255, 255, 0.05);
+  --glass-border: rgba(255, 255, 255, 0.10);
+  --text-primary: #e8e4ff;
+  --text-muted:   #8880aa;
+  --text-dim:     #5550778;
+  --success:    #40c070;
+  --warning:    #e0a030;
+  --error:      #e04050;
+  --radius:     12px;
+  --radius-sm:  8px;
+  font-family: 'Segoe UI', system-ui, -apple-system, sans-serif;
+  font-size: 14px;
+}
+
+html, body, #root {
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: var(--bg-deep);
+  color: var(--text-primary);
+}
+
+/* Glassmorphism card */
+.glass {
+  background: var(--glass-bg);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius);
+}
+
+.glass-sm {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+}
+
+/* Buttons */
+button {
+  cursor: pointer;
+  border: none;
+  outline: none;
+  font-family: inherit;
+  font-size: inherit;
+  transition: opacity 0.15s, transform 0.1s;
+}
+
+button:active { transform: scale(0.97); }
+button:disabled { opacity: 0.4; cursor: not-allowed; }
+
+.btn-primary {
+  background: var(--accent);
+  color: #fff;
+  padding: 0.5rem 1.2rem;
+  border-radius: var(--radius-sm);
+  font-weight: 600;
+}
+.btn-primary:hover { opacity: 0.85; }
+
+.btn-ghost {
+  background: transparent;
+  color: var(--text-muted);
+  padding: 0.4rem 0.8rem;
+  border-radius: var(--radius-sm);
+}
+.btn-ghost:hover { background: var(--glass-bg); color: var(--text-primary); }
+
+/* Inputs */
+input, textarea {
+  font-family: inherit;
+  font-size: inherit;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid var(--glass-border);
+  border-radius: var(--radius-sm);
+  color: var(--text-primary);
+  outline: none;
+  transition: border-color 0.15s;
+}
+input:focus, textarea:focus {
+  border-color: var(--accent);
+}
+
+/* Scrollbar */
+::-webkit-scrollbar { width: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: var(--glass-border); border-radius: 3px; }
+
+/* Utility */
+.truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85em; }

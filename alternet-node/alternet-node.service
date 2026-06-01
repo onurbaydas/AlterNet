@@ -1,0 +1,26 @@
+[Unit]
+Description=AlterNet Headless Seed/Relay Daemon
+Documentation=https://github.com/alternet/alternet
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=alternet
+Group=alternet
+ExecStart=/usr/local/bin/alternet-node --config /etc/alternet/node.toml
+Restart=on-failure
+RestartSec=10
+
+# Güvenlik ayarları
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=read-only
+ReadWritePaths=/var/lib/alternet
+
+# Veri dizini (config'deki data_dir ile uyumlu olmalı)
+Environment=HOME=/var/lib/alternet
+
+[Install]
+WantedBy=multi-user.target

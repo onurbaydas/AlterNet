@@ -1,0 +1,21 @@
+version: '3.8'
+
+services:
+  alternet-daemon:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    image: alternet-daemon:latest
+    container_name: alternet-node
+    restart: unless-stopped
+    ports:
+      - "4001:4001"
+      - "4002:4002/udp"
+    volumes:
+      - alternet-data:/var/lib/alternet
+    environment:
+      - ALTERNET_DATA_DIR=/var/lib/alternet
+      - RUST_LOG=info
+
+volumes:
+  alternet-data:
