@@ -1,7 +1,7 @@
 <div align="center">
   <h1>بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ</h1>
   <h2>AlterNet</h2>
-  <p><b>Distributed, Immutable, Serverless Web Architecture</b></p>
+  <p><b>Distributed, Immutable, Serverless Web Architecture & WASM Host</b></p>
   
   [![Rust](https://img.shields.io/badge/rust-v1.85.0-orange?style=flat-square&logo=rust)](https://www.rust-lang.org)
   [![Tauri](https://img.shields.io/badge/Tauri-v2-blue?style=flat-square&logo=tauri)](https://tauri.app/)
@@ -11,82 +11,98 @@
 
 ---
 
-AlterNet is a **peer-to-peer, distributed hypermedia system and application host**. It is designed to replace central cloud infrastructure with an immutable, self-replicating network of nodes. AlterNet serves static content, executes WebAssembly applications safely, and acts as a global sovereign namespace.
+## 📖 What is AlterNet?
 
-## 🚀 Key Technical Features
+AlterNet is a paradigm shift in how we conceive the World Wide Web. It replaces the fragile, centralized client-server model (AWS, Cloudflare, DNS) with an **immutable, mathematically verifiable, peer-to-peer hyperspace**.
 
-### 1. Peer-to-Peer Block Store & IPFS-like Merkle DAGs
+In AlterNet, there are no IP addresses to host websites, no DNS registrars to censor domains, and no central servers to crash. Content and Applications are packaged into WebAssembly (WASM), cryptographically hashed, and distributed across a global Swarm network.
 
-```mermaid
-graph TD
-    NodeA[AlterNet Node A] <-->|Want-list / Blocks| NodeB[AlterNet Node B]
-    NodeA --> SQLite[(Local PinStore)]
-    NodeA --> WASM[Wasmtime Sandbox]
-    WASM --> App1((App 1))
-    WASM --> App2((App 2))
-```
-
-- **Content-Addressing:** Files and applications are referenced by the SHA-256 hash of their contents (`alter://<cid>`), ensuring cryptographic immutability.
-- **Merkle DAGs:** Large files are chunked into 256KB blocks, encrypted, and distributed across the network via a Directed Acyclic Graph structure.
-- **PinStore GC:** Nodes specify a maximum storage quota (e.g., 5GB). Unpinned orphaned blocks are periodically swept by the background Garbage Collector.
-
-### 2. WASM Application Execution (Wasmtime)
-- **Sandboxed Execution:** AlterNet applications run inside a WebAssembly sandbox with strict capability-gating.
-- **Host Functions:** WebAssembly apps cannot make arbitrary network requests. They can only communicate via explicit host functions exported by the Rust core (e.g., `NetworkAccess`, `StorageWrite`).
-- **Fuel Limits:** Computations are deterministic and restricted by a fuel limit, preventing CPU exhaustion or infinite loop attacks from malicious apps.
-
-### 3. CRDT-Synchronized Boards
-- **Distributed State:** Applications (like distributed task boards or chat rooms) sync state over the network using Conflict-Free Replicated Data Types (Automerge).
-- **Eventual Consistency:** Network splits do not halt productivity; nodes merge their state automatically when reconnected.
-
-### 4. Advanced Anonymity & Resilience
-- **Tor integration (`libp2p-community-tor`):** Natively proxy outbound connections through the Tor network.
-- **Onion Routing (Multi-Hop Relay):** Built-in capability to forward blocks and messages through intermediate nodes, obscuring the original requester.
+### 🌌 The Three Pillars
+1. **Content Addressing (The Immutable Web):** You don't browse to a location (`https://server.com`); you request a mathematical hash (`alter://QmHash...`). If a government alters the website, the hash changes, and the network mathematically rejects the counterfeit.
+2. **Distributed Block Store (The Global Hard Drive):** Files are sliced into 256KB Merkle DAG blocks and scattered across thousands of nodes. When you request a file, bits and pieces are streamed from multiple peers simultaneously, resembling BitTorrent on steroids.
+3. **Sandboxed Compute (WASM Edge Runtime):** Web applications on AlterNet are not just HTML/JS. They are compiled WebAssembly modules executing safely inside an isolated `wasmtime` sandbox on the client's machine, eliminating server-side rendering entirely.
 
 ---
 
-## 🛠️ Build & Installation
+## 🚀 Deep Technical Architecture
+
+### 1. The Block Exchange Protocol (Want-lists)
+When an AlterNet node needs to load a webpage (`alter://cid`), it queries the network for the root block.
+- Nodes maintain a `WantList`—a dynamic ledger of blocks they are looking for.
+- When connected peers possess these blocks, they push them via highly optimized, pipelined multiplexed streams.
+- The AlterNet core uses a Garbage-Collected SQLite `PinStore` to cache these blocks, serving them to other peers to keep the network alive.
+
+### 2. Capability-Gated WASM Runtime
+AlterNet does not trust the applications it runs. Every app is executed within a secure virtual machine.
+- **No Arbitrary Networking:** An AlterNet app cannot open a raw TCP socket to phone home.
+- **Host Functions:** Apps can only interact with the outside world through heavily audited Rust Host Functions injected into the WASM memory space (e.g., `alter_network_request()`, `alter_storage_write()`).
+- **Fuel Limits:** To prevent infinite loop attacks (Cryptojacking), the WASM executor assigns a specific amount of "Fuel" (CPU cycles). Once the fuel is exhausted, the app is forcefully terminated.
+
+### 3. Proof-of-Work (PoW) Handshakes
+To prevent network flooding, every connection between two AlterNet nodes begins with a cryptographic challenge. A node must spend CPU cycles calculating a valid SHA-256 hash before the connection is accepted.
+
+---
+
+## 💻 Installation & Compilation Guide
+
+AlterNet ships in two variants: the **Browser** (Desktop UI for end-users) and the **Daemon** (Headless server node for enthusiasts who want to seed the network).
 
 ### Prerequisites
-- [Rust](https://www.rust-lang.org/tools/install) (1.85.0+)
-- [Node.js](https://nodejs.org/) (20+)
+- **Rust Toolchain:** `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
+- **Node.js (v20+):** `nvm install 20`
+- **Docker:** (Optional, for deploying the daemon).
 
-### Running Locally
+### Compiling the Desktop Browser
+
+1. **Clone the Source:**
+   ```bash
+   git clone https://github.com/onurbaydas/AlterNet.git
+   cd AlterNet
+   ```
+
+2. **Install Frontend Dependencies:**
+   ```bash
+   cd alternet-browser
+   npm install
+   ```
+
+3. **Run in Development Mode:**
+   ```bash
+   npm run tauri dev
+   ```
+
+4. **Build Production Binary:**
+   ```bash
+   npm run tauri build
+   ```
+
+### Deploying the Headless Daemon (1-Click Docker)
+
+For developers wanting to contribute storage and bandwidth to the AlterNet ecosystem without running the GUI:
+
 ```bash
-# Clone the repository
-git clone https://github.com/your-org/alternet.git
-cd alternet
-
-# Install frontend dependencies
-cd alternet-browser
-npm install
-
-# Run the Tauri AlterNet Browser
-npm run tauri dev
+docker-compose up -d --build
 ```
-
-### Running as a Headless Daemon
-AlterNet provides a `systemd` compatible daemon for running on servers or Raspberry Pis.
-```bash
-cd alternet-daemon
-cargo build --release
-./target/release/alternet-daemon --config /etc/alternet/config.toml
-```
+This spins up the `alternet-daemon` inside an isolated container, automatically mapping port `4001` and mounting a persistent volume for the SQLite PinStore.
 
 ---
 
-## 📂 Project Structure
+## 🛠 Application Development (Building for AlterNet)
 
-- `alternet-core/`: The headless Rust library containing block exchange (want-list), IPFS logic, replication, and the WASM runtime.
-- `alternet-daemon/`: Headless node binary for dedicated hosting.
-- `alternet-browser/`: The React/Tauri Desktop Application acting as a distributed web browser and runtime environment.
+Developers can build applications for AlterNet using any language that compiles to `wasm32-wasi` (Rust, C, AssemblyScript, Go).
 
----
-
-## 🔐 Security & Threat Model
-Please refer to the [THREAT_MODEL.md](THREAT_MODEL.md) for a detailed breakdown of attack vectors (DDoS, Sybil, Poisoning) and our mitigation strategies.
-
-For architectural decisions, refer to [ARCHITECTURE.md](ARCHITECTURE.md).
+**Example Rust AlterNet App:**
+```rust
+#[no_mangle]
+pub extern "C" fn alter_main() {
+    // This calls the AlterNet Host Function to read from the P2P network
+    let content = unsafe { host_request_block("QmRootHash...") };
+    
+    // Render to the DOM via the AlterNet Browser IPC
+    unsafe { host_render_dom(content) };
+}
+```
+*A dedicated AlterNet SDK is currently under development to wrap these unsafe FFI calls into safe, ergonomic Rust macros.*
 
 ---
 
@@ -96,4 +112,3 @@ If you believe in decentralized, censorship-resistant networks and want to suppo
 - **Monero (XMR):** `43bMdGQAkByAkbiGkgsuGbWf5afr2RBa42swxuqe7M8ohUSVbzaFAQabDivDtLcXJwQDNztZyhMSoiFkSvsCNouV2jACZyA` _(Privacy focused)_
 - **Bitcoin (BTC):** `bc1q66wc9qq5w5k219ayv9mgm9jc3dkan757a7ufst`
 - **Ethereum (ETH / ERC-20):** `0xC47BDDc11F70eb48f3c261186BdAA5A16E4448D0`
-

@@ -1,45 +1,37 @@
-# AlterNet Threat Model & Mitigation Strategy
+# AlterNet Comprehensive Threat Model & Security Posture
 
-AlterNet is a decentralized peer-to-peer network designed to operate in hostile environments. The lack of a central authority means the network must protect itself against malicious peers, state-level adversaries, and localized network attacks.
+AlterNet operates on the assumption that the network is entirely composed of Byzantine (malicious) actors who will attempt to corrupt data, execute malicious code, and take down the network architecture. 
 
-## 1. Network Level Threats
+## 1. Data Integrity & Poisoning Attacks
 
-### 1.1 Sybil Attacks
-**Threat:** An attacker generates thousands of cryptographic identities (Peer IDs) to overwhelm the DHT, isolate a target (Eclipse Attack), or exhaust network resources.
+### 1.1. Content Poisoning (Man-in-the-Middle Data Substitution)
+**The Threat:** When `Node A` requests a WASM application via its hash (`alter://QmHash`), a malicious `Node B` intercepts the request and sends back a corrupted or malicious WASM file.
+**Mitigation:** Absolute Cryptographic Verification. The CID (Content Identifier) is literally the SHA-256 hash of the data. When `Node A` receives the chunks from `Node B`, the AlterNet core hashes the received bytes. If `SHA256(received) != requested_hash`, the data is instantly discarded, the connection to `Node B` is severed, and `Node B` is added to a local IP ban-list. It is mathematically impossible for an attacker to spoof the content without breaking the SHA-256 hashing algorithm.
+
+### 1.2. Garbage Collection (GC) Poisoning
+**The Threat:** An attacker blasts millions of fake, small blocks to a victim's node, attempting to fill up their SQLite `PinStore` and exhaust their disk space.
+**Mitigation:** Nodes enforce a strict Storage Quota (e.g., 5GB max). More importantly, blocks that are not explicitly "Pinned" by the user (or blocks that are not dependencies of a pinned root hash) are treated as volatile cache. The background GC task sweeps the database every 10 minutes and deletes all unpinned blocks starting with the oldest (LRU Cache eviction). The attacker's blocks are simply deleted.
+
+## 2. WebAssembly Execution Threats
+
+### 2.1. VM Sandbox Escape
+**The Threat:** A malicious WASM application attempts to exploit a buffer overflow or memory corruption bug inside the AlterNet browser to gain arbitrary code execution (RCE) on the host's Windows/Mac OS.
+**Mitigation:** AlterNet uses `wasmtime`, the most secure, production-grade WebAssembly runtime developed by the Bytecode Alliance. `wasmtime` compiles WASM to native machine code ahead-of-time (AOT) with strict linear memory isolation and guard pages. If a WASM app tries to access memory outside its allocated 4GB linear memory, the host OS page fault handler catches it and forcefully terminates the VM. No host memory can be leaked.
+
+### 2.2. Infinite Loop Cryptojacking (Resource Exhaustion)
+**The Threat:** A malicious website runs an infinite `while(true)` loop to mine cryptocurrency or freeze the AlterNet Browser UI thread.
 **Mitigation:** 
-- **Proof-of-Work (PoW):** Peer identities are bound to computational work. Establishing a direct connection or publishing to the DHT requires the peer to solve an Argon2id PoW puzzle dynamically adjusted by network capacity.
-- **Trust Scores:** Peers maintain a local reputation matrix. High-capacity, long-lived peers gain higher trust scores, making cheap, ephemeral Sybil nodes ineffective.
+1. **Asynchronous Execution:** The WASM executor runs in a dedicated thread pool managed by `tokio`, meaning the Tauri UI thread is never blocked.
+2. **Fuel Consumption:** AlterNet utilizes `wasmtime`'s "Fuel" mechanism. When an app is launched, it is granted a specific amount of computation cycles (fuel). Every instruction executed by the WASM module consumes fuel. If the fuel drops to zero, the module is preempted and killed via a `Trap::OutOfFuel` exception. The attacker's infinite loop simply results in their app crashing.
 
-### 1.2 Eclipse Attacks
-**Threat:** An attacker surrounds a node with malicious peers, feeding it false DHT routing tables and dropping all outbound connections to the honest network.
-**Mitigation:**
-- **Bootstrap Hardening:** AlterNet uses hardcoded, community-vetted bootstrap nodes (`COMMUNITY_BOOTSTRAP_ADDRS`) combined with dynamic discovery.
-- **Multipath Routing:** Queries are dispatched across multiple disjoint paths in the Kademlia DHT, ensuring that a single malicious path cannot drop a query silently.
+## 3. Network Infrastructure Threats
 
-### 1.3 Passive Observation & Metadata Leakage
-**Threat:** ISPs or DPI (Deep Packet Inspection) tools analyze packet sizes and timing to determine if a user is using AlterNet, who they are talking to, or what files they are fetching.
-**Mitigation:**
-- **Chaff Traffic:** Nodes generate continuous dummy traffic padded to 512-byte boundaries. This masks real requests.
-- **Noise Protocol:** All TCP/QUIC connections are fully encrypted with the Noise Protocol Framework, preventing DPI from reading headers or payloads.
-- **Pluggable Transports:** AlterNet supports Obfs4 and Snowflake to disguise the handshake and protocol signature entirely.
+### 3.1. Distributed Denial of Service (DDoS)
+**The Threat:** An attacker coordinates a botnet to open thousands of concurrent TCP connections to a public AlterNet Daemon, exhausting its file descriptors and CPU.
+**Mitigation:** 
+- **Proof-of-Work (PoW) Handshakes:** Before a peer multiplexing stream is negotiated, the incoming IP must solve a computational puzzle. A botnet trying to open 10,000 connections would require massive CPU resources, neutralizing cheap volumetric DDoS attacks.
+- **Connection Limits:** `libp2p::Swarm` enforces strict limits on inbound connections per IP and global connection limits.
 
-## 2. Storage & Content Threats
-
-### 2.1 Content Poisoning
-**Threat:** A malicious node responds to a block request with corrupted or malicious data.
-**Mitigation:**
-- **Content-Addressing:** Every block is addressed by its SHA-256 hash. Received blocks are immediately hashed; if the hash does not match the requested CID, the block is discarded and the sending peer's reputation is penalized.
-
-### 2.2 Storage Exhaustion
-**Threat:** Malicious apps or peers attempt to fill a node's local hard drive with junk data.
-**Mitigation:**
-- **PinStore GC:** AlterNet enforces strict disk quotas (e.g., 5GB max). Orphaned or unpinned blocks are aggressively swept by the background Garbage Collector.
-
-## 3. Application (WASM) Threats
-
-### 3.1 Malicious WebAssembly Execution
-**Threat:** A downloaded WebAssembly application attempts to access the local file system, mine cryptocurrency, or exfiltrate data.
-**Mitigation:**
-- **Wasmtime Sandboxing:** Apps run in a mathematically proven sandbox. They have NO access to the OS file system or network sockets.
-- **Fuel Limits:** CPU execution is capped. Infinite loops trigger an immediate termination of the WASM instance.
-- **Capability Gating:** Apps must explicitly request capabilities (`StorageWrite`, `NetworkAccess`) in their manifest, which the user must approve.
+### 3.2. Sybil & Routing Table Pollution
+**The Threat:** An attacker generates millions of fake cryptographic identities to flood the Kademlia DHT, isolating nodes and preventing them from finding legitimate content providers.
+**Mitigation:** Kademlia's routing table bucket logic heavily favors long-lived, stable connections. Newly created Sybil nodes are placed at the bottom of the routing priority. Furthermore, the PoW cost to generate a valid `PeerId` makes generating millions of identities computationally prohibitive.

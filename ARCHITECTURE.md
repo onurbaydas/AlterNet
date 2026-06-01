@@ -1,24 +1,44 @@
-# AlterNet Architecture & Topology
+# AlterNet Architecture & Protocol Specification
 
-AlterNet operates purely on a peer-to-peer basis. There are no client-server distinctions. Every instance of AlterNet acts as both a client and a relay node.
+## 1. The Distributed State Machine
+AlterNet functions as a globally distributed, highly concurrent state machine. At the core is the `alternet-core` library, driven by `tokio`, which manages network traversal, cryptography, and the `wasmtime` runtime environment.
 
-## Network Topology
+## 2. Block Exchange & Pinning (The Data Layer)
 
-### Layer 1: Transport & Routing (libp2p)
-- **Multiplexing:** Yamux is used to multiplex multiple substreams (e.g., Kademlia queries, file transfers) over a single TCP/QUIC connection.
-- **Routing:** Kademlia DHT maintains the routing table. Nodes are grouped into buckets based on the XOR distance between their Peer IDs.
+### 2.1. Merkle DAGs (Directed Acyclic Graphs)
+When a user uploads a website or application (e.g., a 10MB folder) to AlterNet:
+1. The file is split into chunks of exactly 256KB.
+2. Each chunk is hashed using SHA-256 to generate a Content Identifier (CID).
+3. A "Root Block" is created, containing pointers (CIDs) to all the child chunks.
+4. The Root CID becomes the absolute address of the application: `alter://<Root-CID>`.
 
-### Layer 2: Secure Application Protocols
-- **File Exchange:** AlterNet uses a custom request/response protocol for block exchange (`/alternet/exchange/1.0.0`). Instead of IPFS Bitswap, we use an optimized pipelined Want-List exchange protocol.
-- **Discovery:** Nodes register their capabilities and services (e.g., "WebAssembly Host", "Storage Provider") on the Kademlia DHT using Provider Records.
+### 2.2. The Want-List Protocol
+AlterNet nodes do not fetch files via HTTP GET. They use a gossip-based `WantList` protocol.
+- When `Node A` wants `CID_X`, it broadcasts a `Want(CID_X)` message to its connected peers.
+- If `Node B` has `CID_X` in its SQLite PinStore, it replies with a `Block(CID_X, Data)` payload.
+- This allows a 10MB file to be downloaded in parallel from 40 different peers, drastically increasing speed and preventing central server bottlenecks.
 
-### Layer 3: Application & Sandboxing
-- **WASM Runtime:** The `wasmtime` crate is embedded into the core.
-- **CRDT Synchronization:** For distributed states (Boards, Chats), AlterNet utilizes Conflict-Free Replicated Data Types to ensure all nodes eventually converge on the same state without a master server.
+## 3. WebAssembly Sandbox Execution (The Compute Layer)
 
-## Data Flow: Fetching an Application
-1. **Request:** The UI requests `alter://bafybeigdyrzt5sfp7udm7hu76uh7y26nf3efuylqabf3oclgtqy55fbzdi`.
-2. **Resolution:** The AlterNet core queries the DHT for peers providing this CID.
-3. **Connection:** The core connects to the providers, negotiates Noise encryption, and requests the block.
-4. **Verification:** The received block is hashed. If it matches `bafy...`, it is written to the SQLite PinStore.
-5. **Execution:** The WASM engine loads the block into isolated memory and begins execution, bound by the manifest's capabilities.
+### 3.1. Why WASM?
+Instead of rendering HTML/JS through a massive, insecure browser engine like V8/Chromium, AlterNet applications are distributed as pre-compiled WebAssembly binaries (`.wasm`). This provides:
+- **Near-Native Performance:** WASM executes at 90% the speed of C++.
+- **Absolute Sandboxing:** WASM memory is linearly isolated. A malicious app cannot read the host operating system's RAM or escape the VM.
+- **Language Agnosticism:** Developers can write AlterNet apps in Rust, C, Go, or Python (via py2wasm).
+
+### 3.2. Capability Gating & The Linker
+The `wasmtime::Linker` is the bouncer of the AlterNet club. When a WASM module is instantiated, the Linker explicitly injects "Host Functions" into the module's environment.
+- If an app tries to access the network, it must call the imported `env::network_fetch(cid)`. 
+- The Rust host intercepts this call, checks if the user has granted this app "Network Access" permissions, and only then executes the request via the Kademlia DHT.
+- **Zero-Day Resilience:** Even if a WASM app contains malware, it is completely trapped in the sandbox with zero access to the host OS syscalls.
+
+## 4. Network Topology & Obfuscation
+
+### 4.1. Proof-of-Work Handshake
+To prevent automated Botnets from flooding the AlterNet DHT (Eclipse attacks), every incoming connection to the Swarm requires solving a computational puzzle.
+- The connecting node receives a random `Nonce` from the host.
+- It must find a value `X` such that `SHA256(Nonce + X)` starts with `N` leading zeros.
+- This delays connection establishment by ~2 seconds per peer, making large-scale Sybil attacks mathematically unviable.
+
+### 4.2. Traffic Obfuscation
+To bypass ISP throttling and Deep Packet Inspection (DPI) in restrictive regimes, AlterNet integrates Pluggable Transports. The TCP streams are wrapped in `Obfs4`, completely randomizing packet lengths and timing intervals to look like unpredictable white noise.
