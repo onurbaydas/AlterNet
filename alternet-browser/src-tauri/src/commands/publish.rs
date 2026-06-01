@@ -14,6 +14,60 @@ use std::{path::PathBuf, sync::Arc, time::Duration};
 use tauri::{AppHandle, Emitter, State};
 
 #[derive(Serialize)]
+pub struct FolderValidation {
+    pub exists: bool,
+    pub has_index_html: bool,
+    pub file_count: usize,
+    pub total_bytes: u64,
+}
+
+/// Validate a folder before publishing — counts files and checks for index.html.
+#[tauri::command]
+pub fn validate_publish_folder(path: String) -> Result<FolderValidation, String> {
+    let folder = PathBuf::from(&path);
+    if !folder.exists() {
+        return Ok(FolderValidation {
+            exists: false,
+            has_index_html: false,
+            file_count: 0,
+            total_bytes: 0,
+        });
+    }
+
+    let mut file_count: usize = 0;
+    let mut total_bytes: u64 = 0;
+    let mut has_index_html = false;
+
+    fn walk(dir: &PathBuf, count: &mut usize, bytes: &mut u64, found_index: &mut bool) {
+        if let Ok(entries) = std::fs::read_dir(dir) {
+            for entry in entries.flatten() {
+                let p = entry.path();
+                if p.is_dir() {
+                    walk(&p, count, bytes, found_index);
+                } else {
+                    *count += 1;
+                    if let Ok(meta) = entry.metadata() {
+                        *bytes += meta.len();
+                    }
+                    if p.file_name().and_then(|n| n.to_str()) == Some("index.html") {
+                        *found_index = true;
+                    }
+                }
+            }
+        }
+    }
+
+    walk(&folder, &mut file_count, &mut total_bytes, &mut has_index_html);
+
+    Ok(FolderValidation {
+        exists: true,
+        has_index_html,
+        file_count,
+        total_bytes,
+    })
+}
+
+#[derive(Serialize)]
 pub struct PublishResult {
     pub alter_uri: String,
     pub pubkey_hex: String,

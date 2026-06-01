@@ -158,6 +158,49 @@ pub struct ManifestMeta {
 }
 
 // ═══════════════════════════════════════════════
+// Provider Announcement — DHT Provider Doğrulaması
+// ═══════════════════════════════════════════════
+
+/// DHT provider kaydına eşlik eden imzalı duyuru.
+///
+/// Libp2p Kademlia provider record'ları yalnızca PeerId içerir; özel payload
+/// taşıyamazlar. Bu yapı ayrı bir DHT PUT kaydı olarak saklanır:
+/// `provider_sig/<cid_hex>` → CBOR-serialized `SignedProviderAnnouncement`.
+///
+/// Bir fetcher, sağlayıcıya güvenmeden önce bu kaydı alır ve imzayı doğrular.
+/// İmza doğrulaması başarısız olursa sağlayıcı atlanır (DHT poisoning koruması).
+///
+/// **İmzalanan mesaj:** `author_pubkey || content_cid_bytes || announced_at_be64`
+/// CBOR ile serializasyon yapılmaz — deterministik ve sade.
+#[derive(Clone, Debug, PartialEq, Eq, Serialize, Deserialize)]
+pub struct SignedProviderAnnouncement {
+    /// Duyuruyu yapan node'un Ed25519 public key'i (protobuf encoded, libp2p formatı).
+    pub author_pubkey: Vec<u8>,
+    /// Sağlanan içeriğin CID'i (hex string).
+    pub content_cid: String,
+    /// Duyuru zamanı (unix epoch seconds).
+    pub announced_at: u64,
+    /// `signing_bytes(self)` üzerindeki Ed25519 imzası.
+    pub signature: Vec<u8>,
+}
+
+impl SignedProviderAnnouncement {
+    /// İmzalama/doğrulama için deterministik byte dizisi üret.
+    ///
+    /// Format: `author_pubkey || content_cid.as_bytes() || announced_at (big-endian u64)`
+    /// CBOR encode edilmez — imza alanından bağımsız ve deterministik.
+    pub fn signing_bytes(&self) -> Vec<u8> {
+        let mut buf = Vec::with_capacity(
+            self.author_pubkey.len() + self.content_cid.len() + 8,
+        );
+        buf.extend_from_slice(&self.author_pubkey);
+        buf.extend_from_slice(self.content_cid.as_bytes());
+        buf.extend_from_slice(&self.announced_at.to_be_bytes());
+        buf
+    }
+}
+
+// ═══════════════════════════════════════════════
 // Sabitler
 // ═══════════════════════════════════════════════
 

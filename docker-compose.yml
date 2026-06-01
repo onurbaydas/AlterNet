@@ -1,11 +1,11 @@
 version: '3.8'
 
 services:
-  alternet-daemon:
+  alternet-node:
     build:
       context: .
       dockerfile: Dockerfile
-    image: alternet-daemon:latest
+    image: alternet-node:latest
     container_name: alternet-node
     restart: unless-stopped
     ports:

@@ -13,6 +13,8 @@ use tauri::Manager;
 
 pub fn run() {
     tauri::Builder::default()
+        .plugin(tauri_plugin_updater::Builder::new().build())
+        .plugin(tauri_plugin_process::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_shell::init())
         .setup(|app| {
@@ -32,6 +34,7 @@ pub fn run() {
             commands::browse::fetch_site,
             commands::browse::get_site_status,
             commands::publish::publish_site,
+            commands::publish::validate_publish_folder,
             commands::identity::get_identity,
             commands::identity::generate_identity,
             commands::pin::pin_site,

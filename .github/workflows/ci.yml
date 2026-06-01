@@ -1,4 +1,6 @@
 name: CI
+# To run fuzz tests: cargo +nightly fuzz run fuzz_manifest_deserialize -- -max_total_time=60
+# To run fuzz tests: cargo +nightly fuzz run fuzz_alter_uri -- -max_total_time=60
 
 on:
   push:
@@ -11,22 +13,32 @@ env:
 
 jobs:
   build:
-    name: Rust Build & Test
-    runs-on: ubuntu-latest
-    
+    name: Rust Build and Test on ${{ matrix.os }}
+    runs-on: ${{ matrix.os }}
+
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-22.04, windows-latest, macos-latest]
+
     steps:
     - uses: actions/checkout@v4
-    
+
     - name: Install Rust toolchain
       uses: dtolnay/rust-toolchain@stable
       with:
         components: rustfmt, clippy
-        
+
     - name: Install System Dependencies
+      if: runner.os == 'Linux'
       run: |
         sudo apt-get update
         sudo apt-get install -y libwebkit2gtk-4.1-dev build-essential curl wget file libssl-dev libgtk-3-dev libayatana-appindicator3-dev librsvg2-dev
-        
+
+    - name: Install macOS Dependencies
+      if: runner.os == 'macOS'
+      run: brew install openssl pkg-config
+
     - name: Cargo Cache
       uses: Swatinem/rust-cache@v2
 
@@ -38,3 +50,14 @@ jobs:
 
     - name: Run Tests
       run: cargo test --all-targets --all-features
+
+    - name: Security audit
+      continue-on-error: true
+      run: |
+        cargo install cargo-audit --locked
+        cargo audit
+
+    - name: NPM security audit
+      run: npm audit --audit-level=high
+      working-directory: alternet-browser
+      continue-on-error: true

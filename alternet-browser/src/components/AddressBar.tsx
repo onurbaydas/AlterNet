@@ -39,6 +39,10 @@ export function AddressBar({
     }
   }, [currentUri]);
 
+  // Yükleme başlayınca (isLoading true → false geçişi değil, true anında) input'u canlı URI ile güncelle
+  // Yükleme tamamlayınca currentUri zaten set edilmiş olur — input'u güncelleme useEffect'e bırakılır
+
+
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
     const raw = input.trim();
@@ -130,11 +134,21 @@ export function AddressBar({
           placeholder="alter://abc123... veya petname"
           style={{
             width: "100%",
-            padding: "0.45rem 0.75rem 0.45rem 0.75rem",
+            padding: "0.45rem 2.2rem 0.45rem 0.75rem",
             fontSize: "0.875rem",
             fontFamily: "'JetBrains Mono', monospace",
           }}
         />
+        {/* Yükleme spinner — sağ kenarda */}
+        {(isLoading || resolving) && (
+          <span className="address-spinner">◌</span>
+        )}
+        <style>{`
+          @keyframes alternet-spin {
+            from { rotate: 0deg; }
+            to   { rotate: 360deg; }
+          }
+        `}</style>
       </div>
 
       <button

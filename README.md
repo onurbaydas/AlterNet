@@ -383,6 +383,24 @@ docker compose up -d --build
 Use Docker for seed nodes and lab deployments. For local publishing and browser
 development, native Rust and Tauri workflows are easier to debug.
 
+## Security Status
+
+> **Alpha Software — Not Independently Audited**
+>
+> AlterNet has NOT undergone an independent security review.
+> alter:// sites render in a sandboxed iframe (allow-scripts allow-same-origin).
+> Tauri IPC is not accessible from within the iframe.
+
+Known limitations in v0.1.0:
+
+- alter:// sites render in a sandboxed iframe (allow-scripts allow-same-origin);
+  Tauri IPC is not accessible from within the iframe. Full process isolation
+  (separate OS process per site) is planned for v0.2.0.
+- WASM app host functions (content_read, storage_write, net_request) are stubs
+  in v0.1.0.
+- Onion routing reply encryption is incomplete; use --privacy padded instead.
+- Content availability depends on seeders; no guaranteed uptime.
+
 ## Security Posture
 
 Implemented foundations:

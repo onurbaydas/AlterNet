@@ -1,0 +1,25 @@
+[package]
+name = "alternet-fuzz"
+version = "0.0.1"
+edition = "2021"
+publish = false
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+alternet-core = { path = "../alternet-core" }
+ciborium = "0.2"
+
+[[bin]]
+name = "fuzz_manifest_deserialize"
+path = "fuzz_targets/fuzz_manifest_deserialize.rs"
+test = false
+doc = false
+
+[[bin]]
+name = "fuzz_alter_uri"
+path = "fuzz_targets/fuzz_alter_uri.rs"
+test = false
+doc = false

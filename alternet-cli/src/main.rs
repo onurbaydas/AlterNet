@@ -1362,7 +1362,14 @@ async fn run_board(
 fn parse_privacy_level(s: &str) -> PrivacyLevel {
     match s.trim().to_lowercase().as_str() {
         "clear" | "none" => PrivacyLevel::Clear,
-        "onion" => PrivacyLevel::Onion { hops: 3 },
+        "onion" => {
+            eprintln!(
+                "Warning: Onion routing is experimental in v0.1.0. \
+                Reply encryption is incomplete. \
+                For production use, prefer --privacy padded."
+            );
+            PrivacyLevel::Onion { hops: 3 }
+        }
         "tor" => PrivacyLevel::Tor,
         _ => PrivacyLevel::Padded, // varsayılan
     }

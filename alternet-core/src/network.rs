@@ -16,6 +16,10 @@ use crate::config::AlterNetConfig;
 use crate::content::FsBlockStore;
 use crate::error::{AlterNetError, Result};
 use crate::exchange::{ExchangeRequest, ExchangeResponse};
+use crate::publish::{
+    deserialize_provider_announcement, provider_sig_dht_key, serialize_provider_announcement,
+    sign_provider_announcement, verify_provider_announcement,
+};
 use crate::types::Cid;
 use libp2p::{
     PeerId, StreamProtocol, Swarm, SwarmBuilder,
@@ -98,6 +102,8 @@ pub struct NodeHandle {
     local_peer_id: PeerId,
     privacy: crate::routing::PrivacyConfig,
     x25519_pubkey: [u8; 32],
+    /// Provider duyurularını imzalamak için bu node'un kimlik anahtarı.
+    keypair: libp2p::identity::Keypair,
 }
 
 impl NodeHandle {
@@ -209,20 +215,82 @@ impl NodeHandle {
             .map_err(|_| AlterNetError::Network("geçersiz relay anahtarı (32 byte değil)".into()))
     }
 
-    /// Blok CID'ini DHT'de duyur (provider record).
+    /// Blok CID'ini DHT'de duyur (provider record) ve imzalı duyuru kaydı yaz.
+    ///
+    /// Standart Kademlia `start_providing` çağrısının yanı sıra,
+    /// `provider_sig/<cid_hex>` anahtarına CBOR-serileştirilmiş
+    /// `SignedProviderAnnouncement` kaydı yazar. Fetcher'lar bu kaydı doğrular;
+    /// imza yoksa veya geçersizse sağlayıcı atlanır (DHT poisoning koruması).
     pub async fn start_providing(&self, cid: &Cid) -> Result<()> {
         let key = cid_to_dht_key(cid);
         let (reply_tx, reply_rx) = oneshot::channel();
         self.send(NodeCommand::StartProviding { key, reply: reply_tx })?;
-        reply_rx.await.map_err(|_| AlterNetError::Network("node yanıt vermedi".into()))?
+        reply_rx.await.map_err(|_| AlterNetError::Network("node yanıt vermedi".into()))??;
+
+        // İmzalı duyuru kaydını ayrı DHT PUT olarak yaz.
+        let cid_hex = cid.to_hex();
+        let timestamp = std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .unwrap_or_default()
+            .as_secs();
+        let ann = sign_provider_announcement(&self.keypair, &cid_hex, timestamp)?;
+        let ann_bytes = serialize_provider_announcement(&ann)?;
+        let sig_key = provider_sig_dht_key(&cid_hex);
+        self.put_dht(&sig_key, ann_bytes).await
     }
 
-    /// CID'in sağlayıcılarını DHT'den bul.
+    /// CID'in sağlayıcılarını DHT'den bul ve imza doğrulaması yap.
+    ///
+    /// `provider_sig/<cid_hex>` kaydını alır ve her sağlayıcı için imzayı doğrular.
+    /// İmza kaydı yoksa veya doğrulama başarısız olursa uyarı loglar ve sağlayıcıları
+    /// döndürmeden önce listeyi filtreler.
+    ///
+    /// Not: Kademlia provider record'ları PeerId içerir; imza kaydı tüm
+    /// sağlayıcılar için ortak tek bir DHT value'da saklanır (yayıncı anahtarı ile).
+    /// İmza doğrulaması geçerse tüm bulunan sağlayıcılar güvenilir kabul edilir.
     pub async fn get_providers(&self, cid: &Cid) -> Result<Vec<PeerId>> {
         let key = cid_to_dht_key(cid);
         let (reply_tx, reply_rx) = oneshot::channel();
         self.send(NodeCommand::GetProviders { key, reply: reply_tx })?;
-        reply_rx.await.map_err(|_| AlterNetError::Network("node yanıt vermedi".into()))?
+        let providers = reply_rx
+            .await
+            .map_err(|_| AlterNetError::Network("node yanıt vermedi".into()))??;
+
+        // İmza kaydını DHT'den al ve doğrula.
+        let cid_hex = cid.to_hex();
+        let sig_key = provider_sig_dht_key(&cid_hex);
+        match self.get_dht(&sig_key).await {
+            Ok(bytes) => match deserialize_provider_announcement(&bytes) {
+                Ok(ann) => {
+                    if verify_provider_announcement(&ann) {
+                        Ok(providers)
+                    } else {
+                        tracing::warn!(
+                            cid = %cid_hex,
+                            "Provider duyurusu imza doğrulaması başarısız — sağlayıcılar atlanıyor"
+                        );
+                        Ok(Vec::new())
+                    }
+                }
+                Err(e) => {
+                    tracing::warn!(
+                        cid = %cid_hex,
+                        error = %e,
+                        "Provider duyurusu deserialize edilemedi — sağlayıcılar atlanıyor"
+                    );
+                    Ok(Vec::new())
+                }
+            },
+            Err(_) => {
+                // İmza kaydı yok (eski node veya henüz yayılmamış) — uyarı logla,
+                // sağlayıcıları yine de döndür (geriye uyumluluk).
+                tracing::warn!(
+                    cid = %cid_hex,
+                    "Provider imza kaydı bulunamadı — doğrulama atlanıyor (eski node?)"
+                );
+                Ok(providers)
+            }
+        }
     }
 
     /// Belirli bir peer'dan blok iste, CID doğrulamasını yap ve ham veriyi döndür.
@@ -287,39 +355,26 @@ impl NodeHandle {
     /// İlk hop paketi soyar, sonraki hop'a ya da doğrudan hedef peer'a iletir.
     ///
     /// Manifesto V: Gönderenin kimliği onion katmanları tarafından gizlenir.
+    ///
+    /// # Errors
+    ///
+    /// Returns an error because onion reply encryption is not yet implemented in v0.1.0.
+    /// The ephemeral reply pubkey required to encrypt return packets is unset, which would
+    /// cause replies to be sent unencrypted or fail silently. Use `Privacy::Padded` or
+    /// `Privacy::Clear` until v0.2.0 ships full onion reply support.
     pub async fn request_block_onion(
         &self,
-        req: crate::routing::OnionBlockRequest,
+        _req: crate::routing::OnionBlockRequest,
     ) -> Result<Vec<u8>> {
-        let (reply_tx, reply_rx) = oneshot::channel();
-        self.send(NodeCommand::SendBlockRequest {
-            peer: req.first_hop,
-            request: crate::exchange::ExchangeRequest::OnionForward {
-                packet: req.packet,
-                reply_pubkey: Vec::new(), // TODO: ephemeral reply key
-            },
-            reply: reply_tx,
-        })?;
-        let response = reply_rx
-            .await
-            .map_err(|_| AlterNetError::Network("node yanıt vermedi".into()))??;
-        match response {
-            crate::exchange::ExchangeResponse::OnionResult { encrypted_data } => {
-                // Yanıt şifrelenmiş; reply key ile çözülmeli (şimdilik ham döndür)
-                Ok(encrypted_data)
-            }
-            crate::exchange::ExchangeResponse::Block { cid: resp_cid, data } => {
-                // Relay CID doğrulaması yaparak Block olarak yanıt verdiyse
-                if !resp_cid.verify(&data) {
-                    return Err(AlterNetError::HashMismatch {
-                        expected: resp_cid.to_hex(),
-                        computed: Cid::from_data(&data).to_hex(),
-                    });
-                }
-                Ok(data)
-            }
-            _ => Err(AlterNetError::Network("beklenmeyen onion yanıtı".into())),
-        }
+        // Onion reply encryption not yet implemented — use Privacy::Padded or Privacy::Clear.
+        // The reply_pubkey field (needed to encrypt return packets back through the circuit)
+        // has no value yet. Sending with an empty reply_pubkey would either produce
+        // unencrypted onion replies or cause relay nodes to reject/drop the response.
+        // Failing loudly here prevents silent data leakage or hard-to-diagnose timeouts.
+        Err(AlterNetError::Network(
+            "Onion reply encryption not yet implemented — use Privacy::Padded or Privacy::Clear"
+                .into(),
+        ))
     }
 
     fn send(&self, cmd: NodeCommand) -> Result<()> {
@@ -360,6 +415,8 @@ async fn inner_spawn(
     config: AlterNetConfig,
     block_store: Arc<FsBlockStore>,
 ) -> std::result::Result<NodeHandle, Box<dyn std::error::Error>> {
+    // Provider duyurularını imzalamak için keypair'i handle'a taşımadan önce klonla.
+    let signing_keypair = keypair.clone();
     let local_peer_id = PeerId::from(keypair.public());
 
     let mut kad_cfg = kad::Config::default();
@@ -488,7 +545,7 @@ async fn inner_spawn(
         }
     });
 
-    Ok(NodeHandle { cmd_tx, local_peer_id, privacy, x25519_pubkey })
+    Ok(NodeHandle { cmd_tx, local_peer_id, privacy, x25519_pubkey, keypair: signing_keypair })
 }
 
 /// Periyodik chaff (sahte) trafik döngüsü.
@@ -833,6 +890,18 @@ fn process_rr_event(
                     ExchangeResponse::HaveList { cids: have }
                 }
                 ExchangeRequest::WantManifest { .. } => ExchangeResponse::ManifestNotFound,
+                ExchangeRequest::WantBlocks { cids, .. } => {
+                    let blocks: Vec<(Cid, Vec<u8>)> = cids
+                        .iter()
+                        .filter_map(|c| {
+                            std::fs::read(block_store.block_path(c)).ok().map(|d| (c.clone(), d))
+                        })
+                        .collect();
+                    ExchangeResponse::Blocks { blocks }
+                }
+                ExchangeRequest::PoWHandshake { .. } => {
+                    ExchangeResponse::PoWHandshakeAck { accepted: false }
+                }
                 ExchangeRequest::OnionForward { .. } => unreachable!("yukarıda ele alındı"),
             };
             swarm

@@ -5,4 +5,8 @@ members = [
     "alternet-node",
     "alternet-browser/src-tauri",
 ]
+# The fuzz crate is intentionally excluded from the normal workspace build.
+# It requires the nightly toolchain and cargo-fuzz.  Build it with:
+#   cargo +nightly fuzz run fuzz_manifest_deserialize -- -max_total_time=60
+exclude = ["fuzz"]
 resolver = "2"

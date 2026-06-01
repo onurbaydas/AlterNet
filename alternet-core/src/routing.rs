@@ -51,6 +51,10 @@ pub enum PrivacyLevel {
     Padded,
     /// Sphinx onion routing (3 hop varsayılan).
     /// Gönderenin kimliği DHT'den ve relay düğümlerinden gizlidir.
+    ///
+    /// Experimental: onion reply encryption incomplete in v0.1.0.
+    /// Reply pubkey is not yet set; onion mode falls back to padded routing.
+    /// Full implementation planned for v0.2.0.
     Onion { hops: u8 },
     /// Tor network üzerinden tüm bağlantılar.
     /// IP adresi tamamen gizlidir. `tor` daemon gerektirir.

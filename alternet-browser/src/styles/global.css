@@ -106,3 +106,51 @@ input:focus, textarea:focus {
 /* Utility */
 .truncate { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .mono { font-family: 'JetBrains Mono', 'Fira Code', monospace; font-size: 0.85em; }
+.flex-spacer { flex: 1; }
+
+/* Title bar — publish shortcut button */
+.btn-publish {
+  /* app-region is Chromium/Tauri-only; the prefixed form is kept for WebView2/WKWebView */
+  -webkit-app-region: no-drag;
+  app-region: no-drag;
+  background: rgba(120, 80, 255, 0.18);
+  border: 1px solid rgba(120, 80, 255, 0.35);
+  border-radius: 6px;
+  color: var(--accent);
+  font-size: 0.72rem;
+  font-weight: 600;
+  padding: 0.2rem 0.65rem;
+  cursor: pointer;
+  letter-spacing: 0.03em;
+  transition: background 0.15s;
+}
+.btn-publish:hover { background: rgba(120, 80, 255, 0.32); }
+
+/* AddressBar — loading spinner overlay (keyframes live in AddressBar.tsx) */
+.address-spinner {
+  position: absolute;
+  right: 0.6rem;
+  top: 50%;
+  transform: translateY(-50%);
+  font-size: 0.9rem;
+  pointer-events: none;
+  display: inline-block;
+  animation: alternet-spin 0.8s linear infinite;
+  color: var(--accent);
+}
+
+/* App layout — main content area below the status bar */
+.app-main-area {
+  flex: 1;
+  display: flex;
+  overflow: hidden;
+}
+
+/* BrowserStatusBar — indeterminate bar (keyframes live in BrowserStatusBar.tsx) */
+.status-indeterminate-bar {
+  height: 100%;
+  width: 100%;
+  background: var(--accent);
+  border-radius: 2px;
+  animation: alternet-indeterminate 1.2s ease-in-out infinite;
+}

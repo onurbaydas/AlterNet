@@ -41,6 +41,13 @@ export interface PinInfo {
   block_count: number;
 }
 
+export interface FolderValidation {
+  exists: boolean;
+  has_index_html: boolean;
+  file_count: number;
+  total_bytes: number;
+}
+
 export const ipc = {
   getIdentity: () => invoke<IdentityInfo>("get_identity"),
 
@@ -56,6 +63,9 @@ export const ipc = {
     title?: string,
     description?: string
   ) => invoke<PublishResult>("publish_site", { path, title, description }),
+
+  validatePublishFolder: (path: string) =>
+    invoke<FolderValidation>("validate_publish_folder", { path }),
 
   resolveName: (name: string) => invoke<string>("resolve_name", { name }),
 

@@ -27,7 +27,11 @@ use crate::error::{AlterNetError, Result};
 use crate::governance::{decode_public_key, sign_bytes, verify_bytes};
 use libp2p::identity::Keypair;
 use serde::{Deserialize, Serialize};
-use wasmtime::{Config, Engine, Linker, Module, Store};
+use wasmtime::{Config, Engine, Linker, Module, Store, Trap};
+
+/// Host functions gated as experimental in v0.1.0.
+/// See TODO comments for planned v0.2.0 implementations.
+const WASM_HOST_FUNCTIONS_VERSION: &str = "0.1.0-experimental";
 
 // ═══════════════════════════════════════════════
 // Capability Modeli
@@ -246,29 +250,28 @@ impl AppHost {
         }
 
         if policy.allows(Capability::ContentRead) {
+            // TODO v0.2.0: implement block read via NodeHandle
             linker
-                .func_wrap("alternet", "content_read", |_caller: wasmtime::Caller<'_, HostState>, _cid_ptr: i32, _cid_len: i32| -> i32 {
-                    // TODO: Implement actual CID read from PinStore
-                    // Return bytes written or error code
-                    0
+                .func_wrap("alternet", "content_read", |_caller: wasmtime::Caller<'_, HostState>, _cid_ptr: i32, _cid_len: i32| -> std::result::Result<i32, Trap> {
+                    Err(Trap::new("content_read: not yet implemented in v0.1.0"))
                 })
                 .ok();
         }
 
         if policy.allows(Capability::StorageWrite) {
+            // TODO v0.2.0: implement with quota-gated write
             linker
-                .func_wrap("alternet", "storage_write", |_caller: wasmtime::Caller<'_, HostState>, _data_ptr: i32, _data_len: i32| -> i32 {
-                    // TODO: Implement actual write to SQLite app-sandbox storage
-                    1 // Return success code
+                .func_wrap("alternet", "storage_write", |_caller: wasmtime::Caller<'_, HostState>, _data_ptr: i32, _data_len: i32| -> std::result::Result<i32, Trap> {
+                    Err(Trap::new("storage_write: not yet implemented in v0.1.0"))
                 })
                 .ok();
         }
 
         if policy.allows(Capability::NetworkAccess) {
+            // TODO v0.2.0: allow only alter:// URIs, deny all others
             linker
-                .func_wrap("alternet", "net_request", |_caller: wasmtime::Caller<'_, HostState>, _req_ptr: i32, _req_len: i32| -> i32 {
-                    // TODO: Dispatch to host network runtime (fetch or P2P RPC)
-                    1 // Return success
+                .func_wrap("alternet", "net_request", |_caller: wasmtime::Caller<'_, HostState>, _req_ptr: i32, _req_len: i32| -> std::result::Result<i32, Trap> {
+                    Err(Trap::new("net_request: not yet implemented in v0.1.0"))
                 })
                 .ok();
         }

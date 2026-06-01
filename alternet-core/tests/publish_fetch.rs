@@ -565,6 +565,170 @@ async fn bad_manifest_rejected() {
 }
 
 // ═══════════════════════════════════════════════
+// Integration testi — İki Node Publish/Fetch (P2P tam akış)
+// Node A yayınlar → DHT → Node B manifest alır → blokları çeker → dosyayı doğrular
+// ═══════════════════════════════════════════════
+
+/// İki canlı node gerektirir: Node A içeriği yayınlar, Node B alter:// URI'den çeker.
+///
+/// Akış:
+///   1. Node A: Ed25519 keypair, bellek içi blok deposu, rastgele port
+///   2. Node B: farklı keypair, farklı port, Node A'ya bootstrap
+///   3. Geçici dizin: index.html ("Hello from AlterNet") içerir
+///   4. Node A: DAG oluşturur → manifest imzalar → manifest'i DHT'ye koyar
+///      → alter:// URI döner
+///   5. 2–3 saniye DHT yayılımı beklenir
+///   6. Node B: DHT'den manifest alır → root_cid'i çözer → tüm CID'leri Node A'dan çeker
+///   7. İddia: index.html var ve "Hello from AlterNet" içeriyor
+///
+/// `#[ignore]`: İki canlı node ve gerçek DHT yayılımı gerektirir; birim test
+/// ortamlarında kararlı çalışması garanti edilemez. `cargo test -- --ignored` ile çalıştırın.
+#[tokio::test]
+#[ignore = "Requires two live nodes"]
+async fn two_node_publish_fetch() {
+    let tmp = tempdir().unwrap();
+
+    // ── Node A: yayıncı ──────────────────────────────────────────────────
+    let alice_keypair = Keypair::generate_ed25519();
+    let alice_pubkey_bytes = alice_keypair.public().encode_protobuf();
+    let alice_pubkey_hex = pubkey_to_hex(&alice_pubkey_bytes);
+    let alter_uri = pubkey_to_alter_uri(&alice_pubkey_bytes);
+
+    let alice_dir = tmp.path().join("alice");
+    tokio::fs::create_dir_all(&alice_dir).await.unwrap();
+    let alice_store = Arc::new(
+        FsBlockStore::new(alice_dir.join("blocks"), 0).await.unwrap(),
+    );
+
+    let mut alice_config = AlterNetConfig::default();
+    alice_config.data_dir = alice_dir.clone();
+    alice_config.mdns_enabled = false; // deterministik test: sadece dial ile bağlan
+    alice_config.privacy_level = PrivacyLevel::Clear; // gecikme yok
+
+    let alice_node = spawn_node(
+        alice_keypair.clone(),
+        alice_config,
+        Arc::clone(&alice_store),
+    )
+    .await
+    .unwrap();
+    let alice_addr = alice_node.listen_on(0).await.unwrap();
+    let alice_peer_id = alice_node.local_peer_id();
+
+    // ── Yayınlanacak içerik: index.html ──────────────────────────────────
+    let site_dir = tmp.path().join("site");
+    tokio::fs::create_dir_all(&site_dir).await.unwrap();
+    tokio::fs::write(site_dir.join("index.html"), b"Hello from AlterNet")
+        .await
+        .unwrap();
+
+    // DAG oluştur ve manifest imzala
+    let root_cid = build_dag(&alice_store, &site_dir).await.unwrap();
+    let manifest = create_manifest(
+        root_cid.clone(),
+        &alice_keypair,
+        1,
+        ManifestMeta { title: Some("AlterNet Test Site".into()), ..Default::default() },
+    )
+    .unwrap();
+    verify_manifest(&manifest).unwrap();
+    let manifest_bytes = serialize_manifest(&manifest).unwrap();
+
+    // ── Node B: alıcı ────────────────────────────────────────────────────
+    let bob_keypair = Keypair::generate_ed25519();
+    let bob_dir = tmp.path().join("bob");
+    tokio::fs::create_dir_all(&bob_dir).await.unwrap();
+    let bob_store = Arc::new(
+        FsBlockStore::new(bob_dir.join("blocks"), 0).await.unwrap(),
+    );
+
+    let mut bob_config = AlterNetConfig::default();
+    bob_config.data_dir = bob_dir.clone();
+    bob_config.mdns_enabled = false;
+    bob_config.privacy_level = PrivacyLevel::Clear;
+
+    let bob_node = spawn_node(bob_keypair, bob_config, Arc::clone(&bob_store))
+        .await
+        .unwrap();
+    bob_node.listen_on(0).await.unwrap();
+
+    // Bob, Node A'ya (bootstrap) bağlanıyor
+    let alice_full_addr = format!("{}/p2p/{}", alice_addr, alice_peer_id)
+        .parse()
+        .unwrap();
+    bob_node.dial(alice_full_addr).unwrap();
+
+    // Kademlia routing table dolsun diye bekle
+    tokio::time::sleep(Duration::from_secs(2)).await;
+
+    // ── Node A: manifest'i DHT'ye koy ────────────────────────────────────
+    tokio::time::timeout(
+        Duration::from_secs(10),
+        alice_node.put_manifest(&alice_pubkey_hex, manifest_bytes.clone()),
+    )
+    .await
+    .expect("put_manifest timeout")
+    .expect("put_manifest failed");
+
+    // DHT yayılımı için bekle
+    tokio::time::sleep(Duration::from_secs(3)).await;
+
+    // ── Node B: alter:// URI çözümleme ───────────────────────────────────
+    // URI'den pubkey → hex → DHT'den manifest al
+    let uri_pubkey = alter_uri_to_pubkey(&alter_uri).unwrap();
+    let uri_pubkey_hex = pubkey_to_hex(&uri_pubkey);
+    assert_eq!(uri_pubkey_hex, alice_pubkey_hex);
+
+    let fetched_manifest_bytes = tokio::time::timeout(
+        Duration::from_secs(15),
+        bob_node.get_manifest(&uri_pubkey_hex),
+    )
+    .await
+    .expect("get_manifest timeout")
+    .expect("get_manifest failed");
+
+    let fetched_manifest = deserialize_manifest(&fetched_manifest_bytes).unwrap();
+    verify_manifest(&fetched_manifest).expect("fetched manifest signature must be valid");
+    assert_eq!(fetched_manifest.root_cid, root_cid);
+
+    // ── Node B: root CID'den tüm blokları Node A'dan çek ─────────────────
+    // Önce root bloğu çek; ardından DAG'daki tüm CID'leri keşfet ve her birini al.
+    let all_cids = collect_all_cids(&alice_store, &fetched_manifest.root_cid)
+        .await
+        .unwrap();
+
+    for cid in &all_cids {
+        let block_data = tokio::time::timeout(
+            Duration::from_secs(10),
+            bob_node.request_block(alice_peer_id, cid),
+        )
+        .await
+        .expect("request_block timeout")
+        .expect("request_block failed");
+
+        // Bob kendi deposuna kaydet
+        bob_store.put(&block_data).await.unwrap();
+        assert!(cid.verify(&block_data), "block hash mismatch for cid");
+    }
+
+    // ── Çıkarma ve doğrulama ─────────────────────────────────────────────
+    let out_dir = tmp.path().join("bob_fetched");
+    extract_dag(&bob_store, &fetched_manifest.root_cid, &out_dir)
+        .await
+        .unwrap();
+
+    let index_path = out_dir.join("index.html");
+    assert!(index_path.exists(), "index.html must exist after extraction");
+
+    let content = tokio::fs::read(&index_path).await.unwrap();
+    assert_eq!(
+        content,
+        b"Hello from AlterNet",
+        "index.html content must match the published bytes"
+    );
+}
+
+// ═══════════════════════════════════════════════
 // Integration testi — ManifestStore Replay/Rollback Reddi
 // ═══════════════════════════════════════════════
 

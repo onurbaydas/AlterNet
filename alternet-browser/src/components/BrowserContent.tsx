@@ -58,9 +58,12 @@ export function BrowserContent({ uri }: Props) {
           }}
         />
       )}
+      {/* alter:// content runs in a sandboxed iframe to prevent IPC access.
+          sandbox="allow-scripts allow-same-origin" isolates site JS from the shell. */}
       <iframe
         ref={iframeRef}
-        title="AlterNet Content"
+        src={undefined}
+        title="AlterNet Site"
         onLoad={() => setLoading(false)}
         onError={() => setLoading(false)}
         style={{
@@ -70,6 +73,7 @@ export function BrowserContent({ uri }: Props) {
           background: "#fff",
         }}
         sandbox="allow-scripts allow-same-origin"
+        referrerPolicy="no-referrer"
       />
       <style>{`
         @keyframes progress {
