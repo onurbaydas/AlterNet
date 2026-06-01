@@ -1,48 +1,47 @@
-# 0.4.1
+# Changelog
 
-- Remove double features: See [PR 21]
-- Correct typo in `src/lib.rs`: See [PR 21]
-- Update `CHANGELOG.md`: See [PR 21]
+This vendored copy follows the upstream `libp2p-community-tor` history and adds
+AlterNet-specific documentation around safe use.
 
-[PR 21]: https://github.com/umgefahren/libp2p-tor/pull/21
+## Vendored in AlterNet
 
-# 0.4.0
+- Documented AlterNet integration expectations.
+- Added explicit misuse warnings for libp2p and DHT metadata leaks over Tor.
+- Kept the transport source compatible with the workspace dependency path.
 
-## Changes
+## 0.4.1
 
-- Updated dependencies: See [PR 18]
-  - [`arti-client` to `v0.24.0`]
-  - [`libp2p` to `v0.53.0`]
-  - [`tor-rtcompat` to `v0.24.0`]
-- Add tracing: See [PR 18]
-- Update CI: See [PR 20]
-  - `actions/checkout` to `v4`
-  - Remove `arduino/setup-protoc`
+- Removed duplicate features.
+- Corrected a typo in `src/lib.rs`.
+- Updated changelog metadata.
 
-## First time contributor
+Upstream reference: <https://github.com/umgefahren/libp2p-tor/pull/21>
 
-- @binarybaron
-
-Thanks! :rocket:
-
-[PR 18]: https://github.com/umgefahren/libp2p-tor/pull/18
-[PR 20]: https://github.com/umgefahren/libp2p-tor/pull/20
-
-
-# 0.3.0-alpha
-
-- Updated dependencies: See [PR 6].
-  - [`arti-client` to `v0.8`
-  
-- Updated dependencies: See [PR 8].
-  - `libp2p-core` to `v0.39`
-  - `libp2p` to `0.51`
-
-[PR 6]: https://github.com/umgefahren/libp2p-tor/pull/6
-[PR 8]: https://github.com/umgefahren/libp2p-tor/pull/8
-
-# 0.2.0-alpha
+## 0.4.0
 
 - Updated dependencies:
-  - [`libp2p` to `v0.50.0`](#2)
-  - [`libp2p-core` to `v0.38.0`](#3)
+  - `arti-client` to `v0.24.0`
+  - `libp2p` to `v0.53.0`
+  - `tor-rtcompat` to `v0.24.0`
+- Added tracing.
+- Updated CI.
+
+Upstream references:
+
+- <https://github.com/umgefahren/libp2p-tor/pull/18>
+- <https://github.com/umgefahren/libp2p-tor/pull/20>
+
+## 0.3.0-alpha
+
+- Updated Arti and libp2p dependencies.
+- Continued alpha-stage API iteration.
+
+Upstream references:
+
+- <https://github.com/umgefahren/libp2p-tor/pull/6>
+- <https://github.com/umgefahren/libp2p-tor/pull/8>
+
+## 0.2.0-alpha
+
+- Updated early libp2p dependencies.
+- Continued experimental Tor transport work.

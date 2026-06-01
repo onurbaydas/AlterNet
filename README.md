@@ -1,114 +1,473 @@
 <div align="center">
   <h1>بِسْمِ اللَّهِ الرَّحْمَنِ الرَّحِيمِ</h1>
   <h2>AlterNet</h2>
-  <p><b>Distributed, Immutable, Serverless Web Architecture & WASM Host</b></p>
-  
-  [![Rust](https://img.shields.io/badge/rust-v1.85.0-orange?style=flat-square&logo=rust)](https://www.rust-lang.org)
+  <p><strong>Serverless, accountless, content-addressed web infrastructure</strong></p>
+
+  [![CI](https://github.com/onurbaydas/AlterNet/actions/workflows/ci.yml/badge.svg)](https://github.com/onurbaydas/AlterNet/actions/workflows/ci.yml)
+  [![Rust](https://img.shields.io/badge/Rust-1.95%2B-orange?style=flat-square&logo=rust)](https://www.rust-lang.org/)
   [![Tauri](https://img.shields.io/badge/Tauri-v2-blue?style=flat-square&logo=tauri)](https://tauri.app/)
-  [![WebAssembly](https://img.shields.io/badge/WASM-Host-purple?style=flat-square)](https://webassembly.org/)
-  [![License: AGPL v3](https://img.shields.io/badge/License-AGPL_v3-blue.svg?style=flat-square)](LICENSE)
+  [![WebAssembly](https://img.shields.io/badge/WASM-wasmtime-654ff0?style=flat-square&logo=webassembly)](https://webassembly.org/)
+  [![License: AGPL-3.0](https://img.shields.io/badge/License-AGPL--3.0-blue?style=flat-square)](LICENSE)
 </div>
 
 ---
 
-## 📖 What is AlterNet?
+## Overview
 
-AlterNet is a paradigm shift in how we conceive the World Wide Web. It replaces the fragile, centralized client-server model (AWS, Cloudflare, DNS) with an **immutable, mathematically verifiable, peer-to-peer hyperspace**.
+AlterNet is an experimental peer-to-peer publishing stack for an alternative
+web: content is addressed by hash, sites are described by signed manifests,
+names are local or Web-of-Trust based, and every device can become a client,
+publisher, seed, or relay.
 
-In AlterNet, there are no IP addresses to host websites, no DNS registrars to censor domains, and no central servers to crash. Content and Applications are packaged into WebAssembly (WASM), cryptographically hashed, and distributed across a global Swarm network.
+The repository contains:
 
-### 🌌 The Three Pillars
-1. **Content Addressing (The Immutable Web):** You don't browse to a location (`https://server.com`); you request a mathematical hash (`alter://QmHash...`). If a government alters the website, the hash changes, and the network mathematically rejects the counterfeit.
-2. **Distributed Block Store (The Global Hard Drive):** Files are sliced into 256KB Merkle DAG blocks and scattered across thousands of nodes. When you request a file, bits and pieces are streamed from multiple peers simultaneously, resembling BitTorrent on steroids.
-3. **Sandboxed Compute (WASM Edge Runtime):** Web applications on AlterNet are not just HTML/JS. They are compiled WebAssembly modules executing safely inside an isolated `wasmtime` sandbox on the client's machine, eliminating server-side rendering entirely.
+- a Rust protocol library (`alternet-core`)
+- a command-line publisher/fetcher (`alternet-cli`)
+- a headless seed/relay daemon (`alternet-node`)
+- a Tauri desktop browser (`alternet-browser`)
+- a vendored Tor transport adapter for libp2p experiments
 
----
+AlterNet is alpha-stage infrastructure. It is useful for local testing, protocol
+experimentation, and research into serverless publishing. It has not completed
+an independent security audit.
 
-## 🚀 Deep Technical Architecture
+## Table of Contents
 
-### 1. The Block Exchange Protocol (Want-lists)
-When an AlterNet node needs to load a webpage (`alter://cid`), it queries the network for the root block.
-- Nodes maintain a `WantList`—a dynamic ledger of blocks they are looking for.
-- When connected peers possess these blocks, they push them via highly optimized, pipelined multiplexed streams.
-- The AlterNet core uses a Garbage-Collected SQLite `PinStore` to cache these blocks, serving them to other peers to keep the network alive.
+- [Core Ideas](#core-ideas)
+- [Current Capabilities](#current-capabilities)
+- [Repository Layout](#repository-layout)
+- [Architecture at a Glance](#architecture-at-a-glance)
+- [Quick Start](#quick-start)
+- [CLI Examples](#cli-examples)
+- [Desktop Browser](#desktop-browser)
+- [Headless Node](#headless-node)
+- [Docker](#docker)
+- [Security Posture](#security-posture)
+- [Development](#development)
+- [Documentation Map](#documentation-map)
+- [Project Status](#project-status)
+- [License](#license)
+- [Support](#support)
 
-### 2. Capability-Gated WASM Runtime
-AlterNet does not trust the applications it runs. Every app is executed within a secure virtual machine.
-- **No Arbitrary Networking:** An AlterNet app cannot open a raw TCP socket to phone home.
-- **Host Functions:** Apps can only interact with the outside world through heavily audited Rust Host Functions injected into the WASM memory space (e.g., `alter_network_request()`, `alter_storage_write()`).
-- **Fuel Limits:** To prevent infinite loop attacks (Cryptojacking), the WASM executor assigns a specific amount of "Fuel" (CPU cycles). Once the fuel is exhausted, the app is forcefully terminated.
+## Core Ideas
 
-### 3. Proof-of-Work (PoW) Handshakes
-To prevent network flooding, every connection between two AlterNet nodes begins with a cryptographic challenge. A node must spend CPU cycles calculating a valid SHA-256 hash before the connection is accepted.
+### Content Addressing
 
----
+AlterNet stores content as Merkle DAG blocks. Each block is identified by a
+BLAKE3-based 32-byte CID. If bytes change, the CID changes. A peer cannot serve
+tampered data without being detected by the receiver.
 
-## 💻 Installation & Compilation Guide
+### Signed Publishing
 
-AlterNet ships in two variants: the **Browser** (Desktop UI for end-users) and the **Daemon** (Headless server node for enthusiasts who want to seed the network).
+Sites are published as signed manifests. A manifest binds:
 
-### Prerequisites
-- **Rust Toolchain:** `curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh`
-- **Node.js (v20+):** `nvm install 20`
-- **Docker:** (Optional, for deploying the daemon).
+- author public key
+- monotonically increasing sequence number
+- Merkle DAG root CID
+- metadata such as title, description, MIME type, tags, and encryption flag
+- Ed25519 signature
 
-### Compiling the Desktop Browser
+This gives AlterNet mutable sites without giving up verification.
 
-1. **Clone the Source:**
-   ```bash
-   git clone https://github.com/onurbaydas/AlterNet.git
-   cd AlterNet
-   ```
+### Local Names, Not Global DNS
 
-2. **Install Frontend Dependencies:**
-   ```bash
-   cd alternet-browser
-   npm install
-   ```
+`alter://<self-certifying-key>` addresses are cryptographic. Human-friendly
+names are local petnames or Web-of-Trust records. There is no registrar and no
+global namespace to squat.
 
-3. **Run in Development Mode:**
-   ```bash
-   npm run tauri dev
-   ```
+### Every Device Can Help
 
-4. **Build Production Binary:**
-   ```bash
-   npm run tauri build
-   ```
+Any user can pin content and serve blocks to others. Popular content naturally
+gains more replicas because more people keep it.
 
-### Deploying the Headless Daemon (1-Click Docker)
+### Sandboxed Compute
 
-For developers wanting to contribute storage and bandwidth to the AlterNet ecosystem without running the GUI:
+AlterNet includes a WASM application host using `wasmtime`. Apps are signed,
+hash-bound to their manifests, and run under a capability policy with fuel
+limits.
+
+## Current Capabilities
+
+### AlterFS: Content Storage
+
+- BLAKE3 CIDs.
+- 256 KiB chunk size.
+- Merkle DAG nodes for files and directories.
+- Deterministic directory ordering.
+- File-system block store with prefix sharding.
+- Local quota enforcement.
+- Optional leaf-content encryption using AES-256-GCM.
+- CBOR serialization through `ciborium`.
+
+### AlterSites: Publishing
+
+- Ed25519-signed manifests.
+- Monotonic sequence numbers for replay/rollback resistance.
+- Manifest serialization/deserialization.
+- Manifest history store for append-only local validation.
+- Metadata fields for title, description, MIME type, tags, and encryption flag.
+
+### AlterExchange: Block Transfer
+
+- libp2p request-response protocol.
+- `WantBlock`, `WantBlocks`, `HaveQuery`, `WantManifest`, and onion-forward
+  request variants.
+- CID verification after receiving block data.
+- Maximum block-size guard in the network path.
+
+### Network Layer
+
+- Kademlia DHT provider records and key-value records.
+- mDNS local discovery.
+- Identify.
+- libp2p request-response with CBOR.
+- relay server/client and DCUtR behaviours.
+- TCP with Noise and Yamux.
+- optional Tor transport path through vendored `libp2p-community-tor`.
+- chaff loop for padded privacy mode.
+
+### AlterNS: Naming
+
+- self-certifying `alter://` URIs.
+- local petname store in CBOR.
+- Web-of-Trust resolver with bounded BFS depth.
+- signed petname lists.
+- signed zone delegation for addresses such as `alter://alice/blog`.
+
+### Replication
+
+- pin records with root CID, author key, label, timestamps, and block list.
+- persistent `pins.cbor` pin store.
+- mark-and-sweep garbage collection.
+- quota-aware unpinning of least-recently accessed content.
+- headless node refresh loop for provider records.
+
+### Discovery and Feeds
+
+- signed tag claims.
+- DHT tag keys.
+- local tag index.
+- Web-of-Trust subscription list.
+- CLI feed pull command to fetch latest manifests from subscribed authors.
+
+### WASM Apps
+
+- signed `AppManifest`.
+- BLAKE3 binding between manifest and WASM bytes.
+- deny-all capability policy by default.
+- optional capabilities: clock, content read, storage write, network access.
+- wasmtime fuel limit for infinite-loop protection.
+
+### Desktop Browser
+
+- Tauri v2 backend.
+- React desktop shell.
+- `alter://` custom protocol handler.
+- address bar, history, refresh, and sidebar.
+- background fetch of published sites.
+- local extraction and MIME serving of fetched DAGs.
+- publish, pin, identity, and name-resolution commands.
+
+## Repository Layout
+
+```text
+AlterNet-master/
+├─ alternet-core/              Protocol library
+│  ├─ src/content.rs           AlterFS block store and Merkle DAG
+│  ├─ src/publish.rs           Signed manifests and manifest history
+│  ├─ src/network.rs           libp2p node handle and swarm loop
+│  ├─ src/naming.rs            Petnames, WoT resolver, zone delegation
+│  ├─ src/replication.rs       Pins, seeding, garbage collection
+│  ├─ src/routing.rs           privacy levels, padding, onion request wrapper
+│  ├─ src/discovery.rs         tags and feed primitives
+│  ├─ src/apps.rs              WASM capability sandbox
+│  └─ src/board.rs             CRDT board/forum experiments
+├─ alternet-cli/               Publish, fetch, pin, name, feed, app, board commands
+├─ alternet-node/              Headless seed/relay daemon
+├─ alternet-browser/           Tauri browser application
+├─ libp2p-community-tor/       Vendored Tor transport adapter
+├─ Dockerfile
+├─ docker-compose.yml
+├─ alternet.service
+├─ ARCHITECTURE.md
+├─ THREAT_MODEL.md
+├─ SECURITY.md
+└─ CONTRIBUTING.md
+```
+
+## Architecture at a Glance
+
+```mermaid
+flowchart TD
+    subgraph Tools["User-facing tools"]
+        CLI["alternet-cli"]
+        Browser["Tauri Browser"]
+        Node["alternet-node"]
+    end
+
+    subgraph Core["alternet-core"]
+        Identity["Identity\nEd25519"]
+        Content["AlterFS\nCID + Merkle DAG"]
+        Publish["AlterSites\nSigned manifests"]
+        Names["AlterNS\nPetnames + WoT"]
+        Replication["Pin / Seed / GC"]
+        Apps["WASM sandbox"]
+        Routing["Privacy routing"]
+        Network["libp2p node"]
+    end
+
+    subgraph P2P["Peer-to-peer network"]
+        DHT["Kademlia DHT"]
+        Providers["Provider records"]
+        Exchange["Block exchange"]
+        Relay["Relay / DCUtR / Tor"]
+    end
+
+    CLI --> Core
+    Browser --> Core
+    Node --> Core
+    Content --> Publish
+    Publish --> Network
+    Names --> Network
+    Replication --> Network
+    Apps --> Content
+    Routing --> Network
+    Network --> DHT
+    Network --> Providers
+    Network --> Exchange
+    Network --> Relay
+```
+
+The full module-level design is in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## Quick Start
+
+### Requirements
+
+- **Rust 1.95+**. The current dependency graph uses `sysinfo 0.39.x`, which
+  requires Rust 1.95 or newer.
+- **Node.js 20+** for the Tauri browser.
+- **npm**.
+- Tauri v2 platform prerequisites.
+- Docker, optional for the headless node.
+
+Clone:
 
 ```bash
-docker-compose up -d --build
+git clone https://github.com/onurbaydas/AlterNet.git
+cd AlterNet
+rustup update stable
+cargo check --workspace
 ```
-This spins up the `alternet-daemon` inside an isolated container, automatically mapping port `4001` and mounting a persistent volume for the SQLite PinStore.
 
----
+If Rust reports that `sysinfo` requires a newer compiler, update the stable
+toolchain before continuing.
 
-## 🛠 Application Development (Building for AlterNet)
+## CLI Examples
 
-Developers can build applications for AlterNet using any language that compiles to `wasm32-wasi` (Rust, C, AssemblyScript, Go).
+Generate an identity:
 
-**Example Rust AlterNet App:**
-```rust
-#[no_mangle]
-pub extern "C" fn alter_main() {
-    // This calls the AlterNet Host Function to read from the P2P network
-    let content = unsafe { host_request_block("QmRootHash...") };
-    
-    // Render to the DOM via the AlterNet Browser IPC
-    unsafe { host_render_dom(content) };
-}
+```bash
+cargo run -p alternet-cli -- identity generate --password "change-me"
 ```
-*A dedicated AlterNet SDK is currently under development to wrap these unsafe FFI calls into safe, ergonomic Rust macros.*
 
----
+Show the current identity:
 
-## 🖤 Support & Donate
-If you believe in decentralized, censorship-resistant networks and want to support the ongoing development of AlterNet, consider donating. Your support helps keep the development sovereign and independent.
+```bash
+cargo run -p alternet-cli -- identity show --password "change-me"
+```
 
-- **Monero (XMR):** `43bMdGQAkByAkbiGkgsuGbWf5afr2RBa42swxuqe7M8ohUSVbzaFAQabDivDtLcXJwQDNztZyhMSoiFkSvsCNouV2jACZyA` _(Privacy focused)_
+Publish a site directory:
+
+```bash
+cargo run -p alternet-cli -- publish ./site \
+  --title "My AlterNet Site" \
+  --description "A serverless site" \
+  --tag blog \
+  --password "change-me"
+```
+
+The command prints an `alter://...` address.
+
+Fetch a site:
+
+```bash
+cargo run -p alternet-cli -- fetch alter://YOUR_SITE_KEY --output ./fetched
+```
+
+Pin and reseed content:
+
+```bash
+cargo run -p alternet-cli -- pin alter://YOUR_SITE_KEY
+```
+
+Manage local petnames:
+
+```bash
+cargo run -p alternet-cli -- name set alice alter://ALICE_KEY
+cargo run -p alternet-cli -- name list
+cargo run -p alternet-cli -- name resolve alice
+```
+
+Search by tag:
+
+```bash
+cargo run -p alternet-cli -- search blog
+```
+
+Run a signed WASM app:
+
+```bash
+cargo run -p alternet-cli -- app run app.wasm \
+  --manifest app.cbor \
+  --cap clock \
+  --fuel 10000000
+```
+
+## Desktop Browser
+
+```bash
+cd alternet-browser
+npm install
+npx tauri dev
+```
+
+Build:
+
+```bash
+cd alternet-browser
+npm run build
+npx tauri build
+```
+
+The browser registers an `alter://` custom protocol handler inside Tauri. When a
+site is not present locally, the handler serves a loading page that asks the
+backend to fetch the site from the P2P network.
+
+## Headless Node
+
+Run a seed/relay daemon:
+
+```bash
+cargo run -p alternet-node -- --port 4001 --storage-quota 10G
+```
+
+Use a TOML config:
+
+```bash
+cargo run -p alternet-node -- --config alternet-node/node.example.toml
+```
+
+Example config shape:
+
+```toml
+port = 4001
+storage_quota = "10G"
+relay_enabled = true
+refresh_interval_secs = 3600
+
+[[pin]]
+uri = "alter://YOUR_SITE_KEY"
+label = "Important mirror"
+```
+
+## Docker
+
+The repository includes a Dockerfile and `docker-compose.yml` for running a
+headless daemon:
+
+```bash
+docker compose up -d --build
+```
+
+Use Docker for seed nodes and lab deployments. For local publishing and browser
+development, native Rust and Tauri workflows are easier to debug.
+
+## Security Posture
+
+Implemented foundations:
+
+- BLAKE3 content addressing.
+- Ed25519 manifest signatures.
+- monotonic manifest sequence checks.
+- libp2p Noise transport encryption.
+- Kademlia provider records.
+- local pin store and quota-aware garbage collection.
+- optional leaf content encryption.
+- petname and zone delegation signatures.
+- WASM signature verification, capability gating, and fuel limits.
+- privacy levels for clear, padded, onion, and Tor modes.
+
+Important limitations:
+
+- No independent security audit has been completed.
+- DHT records can leak what content is published, searched, or provided.
+- Petname trust is social and local, not a global identity guarantee.
+- Onion and Tor modes require careful application-layer metadata review.
+- The WASM host contains placeholder host-function implementations for some
+  capabilities.
+- Browser extraction serves fetched files locally; malicious content is still
+  content and should be treated as untrusted.
+
+See [THREAT_MODEL.md](THREAT_MODEL.md) and [SECURITY.md](SECURITY.md).
+
+## Development
+
+Rust checks:
+
+```bash
+cargo fmt --all -- --check
+cargo clippy --workspace --all-targets --all-features -- -D warnings
+cargo test --workspace
+```
+
+Browser checks:
+
+```bash
+cd alternet-browser
+npm install
+npm run build
+```
+
+Security-sensitive changes should include tests or explicit manual verification.
+This includes changes to CID verification, manifest signing, DHT records,
+privacy routing, WASM capabilities, browser protocol handling, pinning, or
+identity storage.
+
+## Documentation Map
+
+- [ARCHITECTURE.md](ARCHITECTURE.md): protocol architecture and data flow.
+- [THREAT_MODEL.md](THREAT_MODEL.md): adversaries, mitigations, and gaps.
+- [SECURITY.md](SECURITY.md): private vulnerability reporting.
+- [CONTRIBUTING.md](CONTRIBUTING.md): contribution workflow.
+- [libp2p-community-tor/README.md](libp2p-community-tor/README.md): Tor transport
+  notes and misuse warnings.
+
+## Project Status
+
+AlterNet is an active prototype. The repository already contains substantial
+protocol code, tests, and user-facing tooling, but it should be hardened before
+high-risk use.
+
+Suggested next milestones:
+
+- complete end-to-end multi-node test scenarios
+- add explicit DHT record signatures where missing
+- add dependency audit tooling
+- tighten browser security boundaries and CSP
+- finish or clearly gate placeholder WASM host functions
+- document bootstrap node operations
+- run external review for publishing, naming, and routing layers
+
+## License
+
+AlterNet is licensed under the [GNU Affero General Public License v3.0](LICENSE).
+
+## Support
+
+If you want to support decentralized, censorship-resistant publishing research,
+donations are welcome:
+
+- **Monero (XMR):** `43bMdGQAkByAkbiGkgsuGbWf5afr2RBa42swxuqe7M8ohUSVbzaFAQabDivDtLcXJwQDNztZyhMSoiFkSvsCNouV2jACZyA`
 - **Bitcoin (BTC):** `bc1q66wc9qq5w5k219ayv9mgm9jc3dkan757a7ufst`
 - **Ethereum (ETH / ERC-20):** `0xC47BDDc11F70eb48f3c261186BdAA5A16E4448D0`

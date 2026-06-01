@@ -1,25 +1,55 @@
 ---
 name: Bug report
-about: Create a report to help us improve
-title: ''
+about: Report a reproducible problem in AlterNet
+title: "[Bug]: "
 labels: bug
-assignees: ''
-
+assignees: ""
 ---
 
-**Describe the bug**
-A clear and concise description of what the bug is.
+## Summary
 
-**To Reproduce**
-Steps to reproduce the behavior:
-1. Go to '...'
-2. Click on '....'
-3. Scroll down to '....'
-4. See error
+<!-- What went wrong? -->
 
-**Expected behavior**
-A clear and concise description of what you expected to happen.
+## Component
 
-**Environment (please complete the following information):**
- - OS: [e.g. Windows 11, macOS, Linux]
- - Version [e.g. 1.0.0]
+- [ ] `alternet-core`
+- [ ] `alternet-cli`
+- [ ] `alternet-node`
+- [ ] `alternet-browser`
+- [ ] Docker/systemd
+- [ ] Documentation
+
+## Steps to Reproduce
+
+1. 
+2. 
+3. 
+
+## Expected Behavior
+
+<!-- What should have happened? -->
+
+## Actual Behavior
+
+<!-- What happened instead? Include exact error text if possible. -->
+
+## Environment
+
+- OS:
+- Rust version:
+- Node.js version:
+- AlterNet commit or version:
+- Command or screen:
+
+## Logs or Screenshots
+
+<!-- Remove private keys, identity backups, unpublished content, and personal data. -->
+
+## Security Check
+
+Could this expose private keys, spoof signed content, bypass CID verification,
+escape the browser/WASM sandbox, or enable remote code execution?
+
+- [ ] No
+- [ ] Unsure
+- [ ] Yes, I will report it privately using SECURITY.md instead of this issue

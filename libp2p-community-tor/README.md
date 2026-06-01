@@ -1,46 +1,71 @@
-[![Continuous integration](https://github.com/umgefahren/libp2p-tor/actions/workflows/ci.yml/badge.svg)](https://github.com/umgefahren/libp2p-tor/actions/workflows/ci.yml)
-[![docs.rs](https://img.shields.io/docsrs/libp2p-community-tor?style=flat-square)](https://docs.rs/libp2p-community-tor/latest)
-[![Crates.io](https://img.shields.io/crates/v/libp2p-community-tor?style=flat-square)](https://crates.io/crates/libp2p-community-tor)
+# libp2p Community Tor Transport
 
-# libp2p Tor
+This directory contains the vendored `libp2p-community-tor` transport used by
+AlterNet for Tor-backed libp2p experiments.
 
-Tor based transport for libp2p. Connect through the Tor network to TCP listeners.
+The crate originates from community work around `libp2p-tor` and is built on top
+of Arti. It allows libp2p transports to dial TCP listeners through Tor.
 
-Build on top of [Arti](https://gitlab.torproject.org/tpo/core/arti).
+## Why It Is Vendored Here
 
-## ⚠️ Misuse warning ⚠️ - read carefully before using
+AlterNet has privacy-routing modes that need a reviewable Tor path. Vendoring
+the transport keeps the exact implementation visible to repository reviewers and
+allows integration notes to live beside the code that uses it.
 
-Although the sound of "Tor" might convey a sense of security it is *very* easy to misuse this
-crate and leaking private information while using. Study libp2p carefully and try to make sure
-you fully understand it's current limits regarding privacy. I.e. using identify might already
-render this transport obsolete.
+## Misuse Warning
 
-This transport explicitly **doesn't** provide any enhanced privacy if it's just used like a regular transport.
-Use with caution and at your own risk. **Don't** just blindly advertise Tor without fully understanding what you
-are dealing with.
+Tor transport alone does not make an AlterNet node anonymous.
 
-### Add to your dependencies
+The application can still leak identity through:
 
-```bash
-cargo add libp2p-community-tor
-```
+- stable libp2p peer IDs
+- Identify protocol information
+- DHT provider records
+- manifest publication records
+- tag and petname records
+- bootstrap choices
+- request timing and volume
+- direct TCP listeners enabled in parallel
 
-This crate uses tokio with rustls for its runtime and TLS implementation.
-No other combinations are supported.
+Treat Tor as one layer, not a complete privacy proof.
 
-- [`rustls`](https://github.com/rustls/rustls)
-- [`tokio`](https://github.com/tokio-rs/tokio)
+## Minimal Example
 
-### Example
 ```rust
-let address = "/dns/www.torproject.org/tcp/1000".parse()?;
-let mut transport = libp2p_community_tor::TorTransport::bootstrapped().await?;
-// we have achieved tor connection
-let _conn = transport.dial(address)?.await?;
+use libp2p::core::Transport;
+
+#[tokio::main]
+async fn main() -> anyhow::Result<()> {
+    let address = "/dns/www.torproject.org/tcp/443".parse()?;
+    let mut transport = libp2p_community_tor::TorTransport::bootstrapped().await?;
+    let _conn = transport.dial(address)?.await?;
+    Ok(())
+}
 ```
 
-### About
+## AlterNet Integration
 
-This crate originates in a PR to bring Tor support too rust-libp2p. Read more about it here: libp2p/rust-libp2p#2899
+`alternet-core/src/network.rs` enables this transport when
+`AlterNetConfig.tor_enabled` is true. The transport is upgraded through libp2p,
+authenticated with Noise, and multiplexed with Yamux.
 
-License: MIT
+Before relying on Tor mode for sensitive use, audit:
+
+- whether Identify should be disabled or minimized
+- which DHT records are published
+- whether provider records reveal the content being served
+- whether direct listeners remain reachable
+- how bootstrap peers are selected
+- whether the same peer ID is reused across privacy contexts
+
+## Runtime Notes
+
+- Tor bootstrap can take time.
+- The transport uses Tokio-compatible Arti runtime components.
+- Tor mode should expose clear status to users and operators.
+- Privacy claims should be tested against real traffic captures.
+
+## License
+
+This vendored crate keeps its original MIT license. AlterNet as a whole is
+licensed under AGPL-3.0; see the repository root for details.
